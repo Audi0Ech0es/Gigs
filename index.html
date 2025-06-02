@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Tour Dates</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --font: 'IBM Plex Mono', monospace;
+      --color-bg: #fff;
+      --color-text: #000;
+      --color-primary: #000;
+      --color-accent: #fff;
+      --color-border: #000;
+      --color-hover: #eee;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--color-bg);
+      color: var(--color-text);
+      padding: 32px;
+      font-size: 16px;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .controls-wrapper {
+      border: 1px solid var(--color-border);
+      padding: 32px;
+      background: var(--color-bg);
+      position: sticky;
+      z-index: 2;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: background 0.3s ease;
+      will-change: transform;
+      top: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+    }
+
+    input[type="text"] {
+      padding: 14px;
+      font-family: var(--font);
+      border: 1px solid var(--color-border);
+      width: 100%;
+      max-width: 600px;
+    }
+
+    .control-buttons,
+    .year-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .btn {
+      background: transparent;
+      border: 1px solid var(--color-border);
+      padding: 10px 18px;
+      font-family: var(--font);
+      cursor: pointer;
+    }
+
+    .btn:hover,
+    .btn.active {
+      background: var(--color-hover);
+    }
+
+    .btn-black {
+      background: var(--color-primary);
+      color: var(--color-accent);
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+      margin-top: 32px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 12px;
+      border: 1px solid var(--color-border);
+      text-align: left;
+      font-size: 14px;
+    }
+
+    th {
+      background: var(--color-primary);
+      color: var(--color-accent);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      transition: background 0.3s ease, color 0.3s ease;
+      top: 0;
+      text-align: center;
+    }
+
+    tbody tr:hover {
+      background: var(--color-hover);
+    }
+
+    .active-row {
+      background: #000;
+      color: #fff;
+    }
+
+    #noResults {
+      text-align: center;
+      margin: 20px 0;
+      font-style: italic;
+    }
+
+    #pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      padding: 20px;
+    }
+
+    #pagination button {
+      padding: 6px 12px;
+      border: 1px solid var(--color-border);
+      font-family: var(--font);
+      background: transparent;
+      cursor: pointer;
+    }
+
+    #pagination button:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+    tbody tr:nth-child(even):not(.active-row) {
+    background-color: #f9f9f9;
+  }
+
+  .active-row {
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  input[type="text"]:focus {
+    outline: none;
+    border-color: #999;
+    background-color: #f6f6f6;
+  }
+
+  .btn:hover {
+    box-shadow: 0 0 0 2px var(--color-border);
+  }
+
+  @media (max-width: 600px) {
+    body {
+      font-size: 14px;
+    }
+    th, td {
+      padding: 8px;
+      font-size: 13px;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <section class="controls-wrapper">
+      <input type="text" id="searchInput" placeholder="Search dates, venues, cities, countries..." />
+      <div class="control-buttons">
+        <button class="btn" data-filter="Date">Year</button>
+        <button class="btn" data-filter="Country">Country</button>
+        <button class="btn btn-black" id="resetBtn">Reset</button>
+      </div>
+      <div class="year-buttons" id="yearButtons"></div>
+    </section>
+
+    <section class="table-wrapper">
+      <table id="tourTable">
+        <thead>
+          <tr><th>Date</th><th>Venue</th><th>City</th><th>Country</th></tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+      <div id="noResults" style="display: none;">No matching results found.</div>
+    </section>
+
+    <div id="pagination"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script>
+    let originalData = [];
+    let activeFilterType = "";
+    let currentPage = 1;
+    const rowsPerPage = 50;
+
+    const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQFiiNQbh6Zl6XboxeYDkXlgY0lCVxbgKY13disqsct61g_WmLXSnTG3HUeuzihqZ-HR0N6TIhPWyXb/pub?output=tsv";
+
+    const searchInput = document.getElementById("searchInput");
+    const tableBody = document.getElementById("tableBody");
+    const noResults = document.getElementById("noResults");
+    const pagination = document.getElementById("pagination");
+    const yearButtons = document.getElementById("yearButtons");
+
+    document.addEventListener("DOMContentLoaded", () => {
+      fetchTSV();
+
+      searchInput.addEventListener("input", debounce(() => {
+        currentPage = 1;
+        updateTable();
+      }, 300));
+
+      document.getElementById("resetBtn").addEventListener("click", resetTable);
+
+      document.querySelectorAll(".control-buttons .btn[data-filter]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const type = btn.dataset.filter;
+          if (activeFilterType === type) {
+            activeFilterType = "";
+            yearButtons.innerHTML = "";
+            clearButtonState();
+            updateTable();
+          } else {
+            activeFilterType = type;
+            clearButtonState();
+            btn.classList.add("active");
+            populateFilterButtons();
+          }
+        });
+      });
+
+      yearButtons.addEventListener("click", e => {
+        if (e.target.tagName === "BUTTON") {
+          yearButtons.querySelectorAll(".btn").forEach(b => b.classList.remove("active"));
+          e.target.classList.add("active");
+          currentPage = 1;
+          updateTable();
+        }
+      });
+    });
+
+    function fetchTSV() {
+      Papa.parse(CSV_URL, {
+        download: true,
+        header: true,
+        delimiter: "\t",
+        complete: function(results) {
+          originalData = results.data
+            .filter(row => ["Date", "Venue", "City", "Country"].every(k => row[k] && row[k].trim() !== ""))
+            .map(row => {
+              const dateString = row.Date.trim();
+              const match = dateString.match(/\b(19|20)\d{2}\b/);
+              row._year = match ? match[0] : null;
+
+              const parsed = new Date(dateString);
+              row._parsedDate = !isNaN(parsed) ? parsed : null;
+
+              return row;
+            });
+          updateTable();
+        }
+      });
+    }
+
+    function populateFilterButtons() {
+      const values = new Set();
+      originalData.forEach(entry => {
+        let val = activeFilterType === "Date" ? entry._year : entry[activeFilterType];
+        if (val) values.add(val);
+      });
+
+      yearButtons.innerHTML = "";
+      [...values].sort().forEach(val => {
+        const btn = document.createElement("button");
+        btn.className = "btn";
+        btn.textContent = val;
+        yearButtons.appendChild(btn);
+      });
+    }
+
+    function getFilteredData() {
+      let data = [...originalData];
+      const query = searchInput.value.trim().toLowerCase();
+
+      const activeValueBtn = yearButtons.querySelector(".btn.active");
+      if (activeValueBtn && activeFilterType) {
+        const value = activeValueBtn.textContent;
+        data = data.filter(entry => {
+          if (activeFilterType === "Date") {
+            return entry._year === value;
+          }
+          return entry[activeFilterType] === value;
+        });
+      }
+
+      if (query) {
+        data = data.filter(row =>
+          Object.values(row).some(val => val.toLowerCase().includes(query))
+        );
+      }
+
+      return data;
+    }
+
+    function updateTable() {
+      const data = getFilteredData();
+      renderTable(data);
+    }
+
+    function renderTable(data) {
+      tableBody.innerHTML = "";
+      const start = (currentPage - 1) * rowsPerPage;
+      const end = start + rowsPerPage;
+      const paginated = data.slice(start, end);
+
+      if (!paginated.length) {
+        noResults.style.display = "block";
+        pagination.innerHTML = "";
+        return;
+      }
+
+      noResults.style.display = "none";
+
+      paginated.forEach(entry => {
+        const row = document.createElement("tr");
+        const formatted = entry._parsedDate
+          ? entry._parsedDate.toDateString()
+          : entry.Date;
+
+        row.innerHTML = `
+          <td>${formatted}</td>
+          <td>${escapeHTML(entry.Venue)}</td>
+          <td>${escapeHTML(entry.City)}</td>
+          <td>${escapeHTML(entry.Country)}</td>
+        `;
+        row.addEventListener("click", () => {
+          tableBody.querySelectorAll("tr").forEach(tr => tr.classList.remove("active-row"));
+          row.classList.add("active-row");
+        });
+        tableBody.appendChild(row);
+      });
+
+      const totalPages = Math.ceil(data.length / rowsPerPage);
+      pagination.innerHTML = "";
+
+      const prev = document.createElement("button");
+      prev.textContent = "❮";
+      prev.disabled = currentPage === 1;
+      prev.addEventListener("click", () => {
+        currentPage--;
+        updateTable();
+      });
+
+      const next = document.createElement("button");
+      next.textContent = "❯";
+      next.disabled = currentPage === totalPages;
+      next.addEventListener("click", () => {
+        currentPage++;
+        updateTable();
+      });
+
+      const info = document.createElement("span");
+      info.textContent = `Page ${currentPage} of ${totalPages} — Showing ${start + 1}–${Math.min(end, data.length)} of ${data.length}`;
+
+      pagination.append(prev, info, next);
+    }
+
+    function resetTable() {
+      searchInput.value = "";
+      yearButtons.innerHTML = "";
+      clearButtonState();
+      activeFilterType = "";
+      currentPage = 1;
+      updateTable();
+    }
+
+    function clearButtonState() {
+      document.querySelectorAll(".control-buttons .btn").forEach(btn => btn.classList.remove("active"));
+      document.querySelectorAll("#yearButtons .btn").forEach(btn => btn.classList.remove("active"));
+    }
+
+    function debounce(func, delay) {
+      let timeout;
+      return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), delay);
+      };
+    }
+
+    function escapeHTML(str) {
+      return str.replace(/[&<>'"]/g, tag => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag]
+      ));
+    }
+  </script>
+</body>
+</html>
