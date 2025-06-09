@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Tour Dates</title>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&family=Gloria+Hallelujah&display=swap" rel="stylesheet">
   <style>
     :root {
-      --font: 'IBM Plex Mono', monospace;
+      --font: 'Gloria Hallelujah', cursive;
       --color-bg: #fff;
       --color-text: #000;
       --color-primary: #000;
@@ -88,46 +88,58 @@
       color: var(--color-accent);
     }
 
-    .table-wrapper {
-      overflow-x: auto;
+    .timeline-wrapper {
       margin-top: 32px;
       margin-bottom: 8px;
+      position: relative;
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    th,
-    td {
-      padding: 12px;
-      border: 1px solid var(--color-border);
-      text-align: left;
+    .timeline {
+      list-style: none;
+      padding-left: 40px;
+      position: relative;
       font-size: 14px;
     }
 
-    th {
-      background: var(--color-primary);
-      color: var(--color-accent);
-      position: sticky;
+    .timeline:before {
+      content: "";
+      position: absolute;
       top: 0;
-      z-index: 1;
-      text-align: center;
+      bottom: 0;
+      left: 20px;
+      width: 2px;
+      background: var(--color-border);
     }
 
-    tbody tr:hover {
-      background: var(--color-hover);
+    .timeline-item {
+      position: relative;
+      margin-bottom: 20px;
     }
 
-    tbody tr:nth-child(even):not(.active-row) {
-      background-color: #f9f9f9;
+    .timeline-item:before {
+      content: "";
+      position: absolute;
+      left: -31px;
+      top: 0;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--color-bg);
+      border: 2px dashed var(--color-border);
     }
 
-    .active-row {
-      background: #000;
-      color: #fff;
-      transition: background 0.2s ease, color 0.2s ease;
+    .timeline-content {
+      border: 2px dashed var(--color-border);
+      padding: 10px;
+      background: var(--color-bg);
+    }
+
+    .timeline-content h3 {
+      margin: 0 0 4px;
+    }
+
+    .timeline-content p {
+      margin: 0;
     }
 
     input[type="text"]:focus {
@@ -187,13 +199,8 @@
       <div class="year-buttons" id="yearButtons"></div>
     </section>
 
-    <section class="table-wrapper">
-      <table id="tourTable">
-        <thead>
-          <tr><th>Date</th><th>Venue</th><th>City</th><th>Country</th></tr>
-        </thead>
-        <tbody id="tableBody"></tbody>
-      </table>
+    <section class="timeline-wrapper">
+      <ul id="timeline" class="timeline"></ul>
       <div id="noResults" style="display: none;">No matching results found.</div>
     </section>
 
@@ -210,7 +217,7 @@
     const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQFiiNQbh6Zl6XboxeYDkXlgY0lCVxbgKY13disqsct61g_WmLXSnTG3HUeuzihqZ-HR0N6TIhPWyXb/pub?output=tsv";
 
     const searchInput = document.getElementById("searchInput");
-    const tableBody = document.getElementById("tableBody");
+    const timelineEl = document.getElementById("timeline");
     const noResults = document.getElementById("noResults");
     const pagination = document.getElementById("pagination");
     const yearButtons = document.getElementById("yearButtons");
@@ -220,10 +227,10 @@
 
       searchInput.addEventListener("input", debounce(() => {
         currentPage = 1;
-        updateTable();
+        updateTimeline();
       }, 300));
 
-      document.getElementById("resetBtn").addEventListener("click", resetTable);
+      document.getElementById("resetBtn").addEventListener("click", resetTimeline);
 
       document.querySelectorAll(".control-buttons .btn[data-filter]").forEach(btn => {
         btn.addEventListener("click", () => {
@@ -232,7 +239,7 @@
             activeFilterType = "";
             yearButtons.innerHTML = "";
             clearButtonState();
-            updateTable();
+            updateTimeline();
           } else {
             activeFilterType = type;
             clearButtonState();
@@ -247,7 +254,7 @@
           yearButtons.querySelectorAll(".btn").forEach(b => b.classList.remove("active"));
           e.target.classList.add("active");
           currentPage = 1;
-          updateTable();
+            updateTimeline();
         }
       });
     });
@@ -270,7 +277,7 @@
 
               return row;
             });
-          updateTable();
+          updateTimeline();
         }
       });
     }
@@ -315,13 +322,13 @@
       return data;
     }
 
-    function updateTable() {
+    function updateTimeline() {
       const data = getFilteredData();
-      renderTable(data);
+      renderTimeline(data);
     }
 
-    function renderTable(data) {
-      tableBody.innerHTML = "";
+    function renderTimeline(data) {
+      timelineEl.innerHTML = "";
       const start = (currentPage - 1) * rowsPerPage;
       const end = start + rowsPerPage;
       const paginated = data.slice(start, end);
@@ -335,22 +342,19 @@
       noResults.style.display = "none";
 
       paginated.forEach(entry => {
-        const row = document.createElement("tr");
+        const item = document.createElement("li");
+        item.className = "timeline-item";
         const formatted = entry._parsedDate
           ? entry._parsedDate.toDateString()
           : entry.Date;
 
-        row.innerHTML = `
-          <td>${formatted}</td>
-          <td>${escapeHTML(entry.Venue)}</td>
-          <td>${escapeHTML(entry.City)}</td>
-          <td>${escapeHTML(entry.Country)}</td>
+        item.innerHTML = `
+          <div class="timeline-content">
+            <h3>${formatted}</h3>
+            <p>${escapeHTML(entry.Venue)}, ${escapeHTML(entry.City)}, ${escapeHTML(entry.Country)}</p>
+          </div>
         `;
-        row.addEventListener("click", () => {
-          tableBody.querySelectorAll("tr").forEach(tr => tr.classList.remove("active-row"));
-          row.classList.add("active-row");
-        });
-        tableBody.appendChild(row);
+        timelineEl.appendChild(item);
       });
 
       const totalPages = Math.ceil(data.length / rowsPerPage);
@@ -361,7 +365,7 @@
       prev.disabled = currentPage === 1;
       prev.addEventListener("click", () => {
         currentPage--;
-        updateTable();
+        updateTimeline();
       });
 
       const next = document.createElement("button");
@@ -369,7 +373,7 @@
       next.disabled = currentPage === totalPages;
       next.addEventListener("click", () => {
         currentPage++;
-        updateTable();
+        updateTimeline();
       });
 
       const info = document.createElement("span");
@@ -378,13 +382,13 @@
       pagination.append(prev, info, next);
     }
 
-    function resetTable() {
+    function resetTimeline() {
       searchInput.value = "";
       yearButtons.innerHTML = "";
       clearButtonState();
       activeFilterType = "";
       currentPage = 1;
-      updateTable();
+      updateTimeline();
     }
 
     function clearButtonState() {
